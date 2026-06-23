@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 
+from sqlalchemy import text  # <-- CORREGIDO: Importación agregada
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 
@@ -22,11 +23,15 @@ SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSe
 
 async def create_database_if_needed():
     async with engine.begin() as conn:
-        await conn.execute("CREATE EXTENSION IF NOT EXISTS timescaledb")
+        # CORREGIDO: Envuelto en text()
+        await conn.execute(text("CREATE EXTENSION IF NOT EXISTS timescaledb"))
+        
         await conn.run_sync(Base.metadata.create_all)
+        
         try:
+            # CORREGIDO: Envuelto en text()
             await conn.execute(
-                "SELECT create_hypertable('sensor_readings', 'timestamp', if_not_exists => TRUE)"
+                text("SELECT create_hypertable('sensor_readings', 'timestamp', if_not_exists => TRUE)")
             )
             logger.info("TimescaleDB hypertable created or already exists.")
         except Exception as exc:

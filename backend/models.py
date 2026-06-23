@@ -5,7 +5,7 @@ from sqlalchemy import TIMESTAMP, Column, Enum, Float, ForeignKey, String, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 
-from .db import Base
+from db import Base
 
 
 def gen_uuid():
@@ -20,7 +20,7 @@ class SensorReading(Base):
     sensor_type = Column(String(64), nullable=False, index=True)
     valor = Column(Float, nullable=False)
     unidad = Column(String(32), nullable=False)
-    timestamp = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
+    timestamp = Column(TIMESTAMP(timezone=True), primary_key=True, nullable=False, server_default=text("now()"))
 
 
 class Device(Base):

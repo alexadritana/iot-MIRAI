@@ -17,10 +17,10 @@ function SensorCard({ label, value, unit, color }) {
   )
 }
 
-function Dashboard({ lastReading, status }) {
-  const temperatura = lastReading?.sensor_type === 'temperatura' ? lastReading.valor : '--'
-  const humedad = lastReading?.sensor_type === 'humedad' ? lastReading.valor : '--'
-  const movimiento = lastReading?.sensor_type === 'movimiento' ? lastReading.valor : '--'
+function Dashboard({ latestReadings, status }) {
+  const temperatura = latestReadings?.temperatura?.valor ?? '--'
+  const humedad = latestReadings?.humedad?.valor ?? '--'
+  const movimiento = latestReadings?.movimiento?.valor ?? '--'
 
   const badgeColor = status.includes('Live') ? '#22c55e' : status.includes('Error') ? '#fb7185' : '#facc15'
 

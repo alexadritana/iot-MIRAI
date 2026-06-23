@@ -13,12 +13,12 @@ from jose import JWTError, jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .db import SessionLocal, create_database_if_needed, engine
-from .models import Alert, Device
-from .repositories.sensor_repository import SensorRepository
-from .services.alert_service import AlertService
-from .services.sensor_service import SensorService
-from .websocket_manager import WebSocketManager
+from db import SessionLocal, create_database_if_needed, engine
+from models import Alert, Device
+from repositories.sensor_repository import SensorRepository
+from services.alert_service import AlertService
+from services.sensor_service import SensorService
+from websocket_manager import WebSocketManager
 
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s")
 logger = logging.getLogger("backend.main")
@@ -31,6 +31,13 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token")
 
 app = FastAPI(title="IoT MIRAI Monitoring API")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 LOOP: asyncio.AbstractEventLoop | None = None
 MQTT_CLIENT: mqtt.Client | None = None
 
@@ -59,7 +66,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
 
 @app.middleware("http")
 async def jwt_middleware(request: Request, call_next):
-    if request.url.path in ["/auth/token", "/ws"] or request.url.path.startswith("/docs") or request.url.path.startswith("/openapi.json"):
+    if request.method == "OPTIONS" or request.url.path in ["/auth/token", "/ws"] or request.url.path.startswith("/docs") or request.url.path.startswith("/openapi.json"):
         return await call_next(request)
     authorization = request.headers.get("Authorization")
     if not authorization or not authorization.startswith("Bearer "):
@@ -170,17 +177,20 @@ def on_message(client, userdata, msg):
     if not LOOP:
         logger.error("AsyncIO loop is not initialized")
         return
-    payload = msg.payload.decode("utf-8")
-    asyncio.run_coroutine_threadsafe(handle_message(payload), LOOP)
+    payload = msg.payload.decode("utf-8", errors="replace")
+    logger.debug("Received MQTT message on %s: %s", msg.topic, payload)
+    asyncio.run_coroutine_threadsafe(handle_message(payload, msg.topic), LOOP)
 
 
-async def handle_message(raw_payload: str):
+async def handle_message(raw_payload: str, topic: str | None = None):
     try:
         payload = json.loads(raw_payload)
         if isinstance(payload, list):
             await _process_batch(payload)
         else:
             await _process_single(payload)
+    except json.JSONDecodeError:
+        logger.warning("Ignoring invalid JSON from MQTT topic %s: %s", topic, raw_payload)
     except Exception as exc:
         logger.exception("Failed to process incoming MQTT message")
         await app.state.ws_manager.broadcast("reading_error", {"error": str(exc)})

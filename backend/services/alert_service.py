@@ -3,8 +3,8 @@ import logging
 from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..interfaces.i_alert_service import IAlertService
-from ..models import Alert
+from interfaces.i_alert_service import IAlertService
+from models import Alert
 
 logger = logging.getLogger("backend.services.alert_service")
 

@@ -3,12 +3,13 @@ import json
 import logging
 import os
 import random
+import threading
 import time
 from datetime import datetime
 
 import paho.mqtt.client as mqtt
 
-BROKER_HOST = os.getenv("MQTT_HOST", "localhost")
+BROKER_HOST = os.getenv("MQTT_HOST", "127.0.0.1")
 BROKER_PORT = int(os.getenv("MQTT_PORT", "1883"))
 DEVICE_ID = "rpi-001"
 OFFLINE_FILE = os.path.join(os.path.dirname(__file__), "offline_data.csv")
@@ -23,6 +24,7 @@ logger = logging.getLogger("publisher")
 
 client = mqtt.Client(client_id=DEVICE_ID, clean_session=True)
 client.reconnect_delay_set(min_delay=1, max_delay=32)
+CONNECTED = threading.Event()
 
 
 def current_timestamp():
@@ -91,19 +93,25 @@ def flush_offline_queue():
             logger.error("Unable to remove offline file: %s", exc)
 
 
-@client.on_connect
+# CORREGIDO: Removido decorador y añadida asignación explícita abajo
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
+        CONNECTED.set()
         logger.info("Connected to MQTT broker %s:%s", BROKER_HOST, BROKER_PORT)
-        client.subscribe([(topic, 1) for topic, _ in TOPICS.values()])
         flush_offline_queue()
     else:
+        CONNECTED.clear()
         logger.warning("Connection failed with code %s", rc)
 
+client.on_connect = on_connect  # <-- Línea corregida
 
-@client.on_disconnect
+
+# CORREGIDO: Removido decorador y añadida asignación explícita abajo
 def on_disconnect(client, userdata, rc):
+    CONNECTED.clear()
     logger.warning("Disconnected from MQTT broker, rc=%s", rc)
+
+client.on_disconnect = on_disconnect  # <-- Línea corregida
 
 
 def generate_sensor_readings():
@@ -138,18 +146,24 @@ def publish_reading(sensor_type: str, value, unit: str):
 
 def run_publisher():
     backoff = 1
-    client.connect_async(BROKER_HOST, BROKER_PORT, keepalive=60)
+    try:
+        client.connect(BROKER_HOST, BROKER_PORT, keepalive=60)
+    except Exception as exc:
+        logger.warning("Initial MQTT connection failed: %s", exc)
     client.loop_start()
+
+    if not CONNECTED.wait(timeout=10):
+        logger.warning("Timed out waiting for MQTT broker connection, will retry in the background")
 
     while True:
         if not client.is_connected():
             logger.warning("Broker not connected, retrying in %s seconds", backoff)
             time.sleep(backoff)
-            backoff = min(backoff * 2, 32)
             try:
                 client.reconnect()
             except Exception as exc:
                 logger.debug("Reconnect attempt failed: %s", exc)
+            backoff = min(backoff * 2, 32)
             continue
 
         readings = generate_sensor_readings()

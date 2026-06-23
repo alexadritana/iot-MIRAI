@@ -5,8 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from ..interfaces.i_sensor_repository import ISensorRepository
-from ..models import Alert, Device, SensorReading
+from interfaces.i_sensor_repository import ISensorRepository
+from models import Alert, Device, SensorReading
 
 logger = logging.getLogger("backend.repositories.sensor_repository")
 
@@ -38,12 +38,21 @@ class SensorRepository(ISensorRepository):
     async def insert_reading(self, reading: dict) -> dict:
         logger.debug("Persisting reading: %s", reading)
         device = await self._ensure_device_exists(reading["device_id"], reading.get("timestamp"))
+        timestamp_value = reading.get("timestamp", None)
+        if isinstance(timestamp_value, str):
+            try:
+                timestamp_value = datetime.fromisoformat(timestamp_value.replace("Z", "+00:00"))
+            except ValueError:
+                timestamp_value = datetime.utcnow()
+        elif timestamp_value is None:
+            timestamp_value = datetime.utcnow()
+
         sensor = SensorReading(
             device_id=reading["device_id"],
             sensor_type=reading["sensor_type"],
             valor=float(reading["valor"]),
             unidad=reading["unidad"],
-            timestamp=reading.get("timestamp", datetime.utcnow()),
+            timestamp=timestamp_value,
         )
         self.session.add(sensor)
         await self.session.flush()

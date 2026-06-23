@@ -4,7 +4,7 @@ const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws'
 
 function useWebSocket(token) {
   const [connectionStatus, setConnectionStatus] = useState('Pending')
-  const [lastReading, setLastReading] = useState(null)
+  const [latestReadings, setLatestReadings] = useState({})
   const [alerts, setAlerts] = useState([])
 
   useEffect(() => {
@@ -23,7 +23,7 @@ function useWebSocket(token) {
         const message = JSON.parse(event.data)
         const { event: eventType, data } = message
         if (eventType === 'reading_ok') {
-          setLastReading(data)
+          setLatestReadings((prev) => ({ ...prev, [data.sensor_type]: data }))
         }
         if (eventType === 'reading_error') {
           setConnectionStatus('Error')
@@ -49,7 +49,7 @@ function useWebSocket(token) {
     }
   }, [token])
 
-  return { lastReading, alerts, connectionStatus }
+  return { latestReadings, alerts, connectionStatus }
 }
 
 export default useWebSocket

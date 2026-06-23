@@ -1,7 +1,7 @@
 import logging
 
-from ..interfaces.i_sensor_repository import ISensorRepository
-from ..interfaces.i_alert_service import IAlertService
+from interfaces.i_sensor_repository import ISensorRepository
+from interfaces.i_alert_service import IAlertService
 
 logger = logging.getLogger("backend.services.sensor_service")
 
